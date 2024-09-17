@@ -60,10 +60,21 @@ def get_camera_world_view(pixel_cor: np.array, K_inverse: np.array, c2w: np.arra
 
 
 def zoom_transform(image_w, image_h, zoom, zoom_center, px, py):
+    '''
+    Transformation of pixel point while zooming and panning
+    :param image_w: Width of the camera image
+    :param image_h: Height of the camera image
+    :param zoom: Zoomed scale
+    :param zoom_center: Center of the panned image
+
+    :param px: x location of the pixel
+    :param py: y location of the pixel
+
+    :return: transformed x and y values of the pixel
+    '''
 
     px = image_w//2 + (px-image_w//2)/zoom + (zoom_center[0]-image_w//2)
     py = image_h//2 + (py-image_h//2)/zoom + (zoom_center[1]-image_h//2)
-
 
     return px, py
 
@@ -99,8 +110,7 @@ def display_interactive_bev(world, image_array, camera):
     zoom = 1
     zoom_center = [height//2,width//2]
 
-    spawn_points = world.get_map().get_spawn_points()
-
+    # spawn_points = world.get_map().get_spawn_points()
     # waypoint01 = map.get_waypoint(carla.Location(x=0,y=0,z=0),project_to_road=True, lane_type=(carla.LaneType.Driving | carla.LaneType.Sidewalk))
 
     pygame_image = pygame.surfarray.make_surface(image_array)
@@ -113,7 +123,6 @@ def display_interactive_bev(world, image_array, camera):
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:  # Left mouse button
                     x, y = event.pos
-
 
                     sensor_location = np.array([camera.get_transform().location.x,camera.get_transform().location.y,camera.get_transform().location.z])
 
@@ -131,7 +140,6 @@ def display_interactive_bev(world, image_array, camera):
                     
                     K_inverse = np.linalg.inv(K)
 
-
                     world_point = get_camera_world_view(np.array([[1,1.],[x,y]]), K_inverse, c2w, 0, sensor_location)
                     sensor_location = np.array([camera.get_transform().location.x,camera.get_transform().location.y,camera.get_transform().location.z])
 
@@ -140,14 +148,15 @@ def display_interactive_bev(world, image_array, camera):
 
                     waypoint01 = map.get_waypoint(carla.Location(x=world_x,y=world_y,z=0),project_to_road=True, lane_type=(carla.LaneType.Driving | carla.LaneType.Sidewalk))
 
-                    # print(f"pixel ({x}, {y}) corresponds to world point: {world_point[1]}")
+                    print("#####################")
+                    print(f"Clicked pixel corresponds to world point: \n{world_point[1][:2]}")
+                    print(f"Closest waypoint for the clicked point: \n{waypoint01.transform.location.x, waypoint01.transform.location.y}")
+                    print("#####################\n\n")
+
 
                     world.debug.draw_string(carla.Location(x=world_x,y=world_y), 'o', life_time=10, persistent_lines=False)
                     
                     world.debug.draw_string(waypoint01.transform.location, 'x', life_time=100, persistent_lines=False)
-
-
-
 
                     pygame.display.flip()
             
