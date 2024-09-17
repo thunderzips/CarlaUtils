@@ -59,6 +59,15 @@ def get_camera_world_view(pixel_cor: np.array, K_inverse: np.array, c2w: np.arra
     return to_world[:,:3] - vec
 
 
+def zoom_transform(image_w, image_h, zoom, zoom_center, px, py):
+
+    px = image_w//2 + (px-image_w//2)/zoom + (zoom_center[0]-image_w//2)
+    py = image_h//2 + (py-image_h//2)/zoom + (zoom_center[1]-image_h//2)
+
+
+    return px, py
+
+
 def get_camera_intrinsic(image_w: int, image_h: int, fov: int):
     '''
     Computes the intrinsic matrix K of the camera
@@ -85,6 +94,17 @@ def display_interactive_bev(world, image_array, camera):
     display = pygame.display.set_mode((width, height))
     pygame.display.set_caption("CARLA BEV - Click to get world coordinates")
 
+    map = world.get_map()
+
+    zoom = 1
+    zoom_center = [height//2,width//2]
+
+    spawn_points = world.get_map().get_spawn_points()
+
+    # waypoint01 = map.get_waypoint(carla.Location(x=0,y=0,z=0),project_to_road=True, lane_type=(carla.LaneType.Driving | carla.LaneType.Sidewalk))
+
+    pygame_image = pygame.surfarray.make_surface(image_array)
+
     running = True
     while running:
         for event in pygame.event.get():
@@ -93,6 +113,7 @@ def display_interactive_bev(world, image_array, camera):
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:  # Left mouse button
                     x, y = event.pos
+
 
                     sensor_location = np.array([camera.get_transform().location.x,camera.get_transform().location.y,camera.get_transform().location.z])
 
@@ -103,28 +124,82 @@ def display_interactive_bev(world, image_array, camera):
                     image_h = int(camera.attributes['image_size_y'])
                     fov = float(camera.attributes['fov'])
 
+                    x, y = zoom_transform(image_w, image_h, zoom, zoom_center, x, y)
+
+
                     K = get_camera_intrinsic(image_w, image_h, fov)
                     
                     K_inverse = np.linalg.inv(K)
 
-                    print(sensor_location.shape)
 
                     world_point = get_camera_world_view(np.array([[1,1.],[x,y]]), K_inverse, c2w, 0, sensor_location)
-                    print(sensor_location.shape)
                     sensor_location = np.array([camera.get_transform().location.x,camera.get_transform().location.y,camera.get_transform().location.z])
 
                     world_x = -world_point[1][1] + sensor_location[1]
                     world_y = -world_point[1][0] + sensor_location[0]
 
-                    print(f"pixel ({x}, {y}) corresponds to world point: {world_point[1]}")
+                    waypoint01 = map.get_waypoint(carla.Location(x=world_x,y=world_y,z=0),project_to_road=True, lane_type=(carla.LaneType.Driving | carla.LaneType.Sidewalk))
+
+                    # print(f"pixel ({x}, {y}) corresponds to world point: {world_point[1]}")
 
                     world.debug.draw_string(carla.Location(x=world_x,y=world_y), 'o', life_time=10, persistent_lines=False)
+                    
+                    world.debug.draw_string(waypoint01.transform.location, 'x', life_time=100, persistent_lines=False)
+
+
+
 
                     pygame.display.flip()
+            
+            
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_LEFTBRACKET:
+                    if zoom>1:
+                        zoom -= 1
+                    print(f"zoom = {zoom}")
+                if event.key == pygame.K_RIGHTBRACKET  :
+                    if zoom<5:
+                        zoom += 1
+                    print(f"zoom = {zoom}")
+
+                if event.key == pygame.K_UP  :
+                    zoom_center[1] -= 100
+                if event.key == pygame.K_DOWN :
+                    zoom_center[1] += 100
+                if event.key == pygame.K_LEFT  :
+                    zoom_center[0] -= 100
+                if event.key == pygame.K_RIGHT  :
+                    zoom_center[0] += 100
+
+                if event.key == pygame.K_r  :
+                    zoom_center = [height//2,width//2]
+                    zoom = 1
 
         # Display the image
+
+        """
+        Pygame zoom
+        """
+
+        wnd_w, wnd_h = display.get_size()
+        zoom_size = (round(wnd_w/zoom), round(wnd_h/zoom))
+
+        zoom_area = pygame.Rect(0, 0, *zoom_size)
+        zoom_area.center = zoom_center
+        # zoom_area.center = (zoom_center[0], zoom_center[1])
+        # zoom_area.center = (pos_x, pos_y)
+
+
+        zoom_surf = pygame.Surface(zoom_area.size)
+        zoom_surf.blit(pygame_image, (0, 0), zoom_area)
+
+        zoom_surf = pygame.transform.scale(zoom_surf, (wnd_w, wnd_h))
+
+        display.blit(zoom_surf, (0, 0))
+
+
         pygame_image = pygame.surfarray.make_surface(image_array)
-        display.blit(pygame_image, (0, 0))
+        # display.blit(pygame_image, (0, 0))
         pygame.display.flip()
 
     pygame.quit()
