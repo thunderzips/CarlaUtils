@@ -11,7 +11,7 @@ def setup_camera(world, height=1000, width=1000, camera_height=200):
     '''
     Used to initialize the camera actor in Carla
 
-    :param world: Carla world
+    :param world: Carla's world object
     :param height: Height of the image
     :param width: Width of the image
     :param camera_height: Height at whoch the camera is placed at
