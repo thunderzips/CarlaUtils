@@ -3,16 +3,19 @@ import math
 import numpy as np
 import pygame
 import pygame.font
+import json
+import os
+
 
 def setup_camera(world, height=1000, width=1000, camera_height=200):
     '''
     Used to initialize the camera actor in Carla
-    Inputs:
-        :param world: Carla world
-        :param height: Height of the image
-        :param width: Width of the image
-        :param camera_height: Height at whoch the camera is placed at
-        :return camera: Carla sensor object of the created camera
+
+    :param world: Carla world
+    :param height: Height of the image
+    :param width: Width of the image
+    :param camera_height: Height at whoch the camera is placed at
+    :return camera: Carla sensor object of the created camera
     '''
     camera_blueprint = world.get_blueprint_library().find('sensor.camera.rgb')
     camera_blueprint.set_attribute('image_size_x', str(width))
@@ -62,6 +65,7 @@ def get_camera_world_view(pixel_cor: np.array, K_inverse: np.array, c2w: np.arra
 def zoom_transform(image_w, image_h, zoom, zoom_center, px, py):
     '''
     Transformation of pixel point while zooming and panning
+    
     :param image_w: Width of the camera image
     :param image_h: Height of the camera image
     :param zoom: Zoomed scale
@@ -96,7 +100,15 @@ def get_camera_intrinsic(image_w: int, image_h: int, fov: int):
     K[1, 2] = image_h / 2.0
     return K
 
-def display_interactive_bev(world, image_array, camera):
+def display_interactive_bev(world, image_array, camera, path_to_json):
+    '''
+    Displays the BEV and performs actions based on used inputs (mouse and keyboard).
+
+    :param world: Carla's world object
+    :param image_array: Image from the camera sensor
+    :param camera: Carla's camera sensor object
+    :param path_to_json: Provide the path to the .json file where the data is to be saved
+    '''
     pygame.init()
     pygame.font.init()
     font = pygame.font.Font(None, 36)
@@ -110,10 +122,13 @@ def display_interactive_bev(world, image_array, camera):
     zoom = 1
     zoom_center = [height//2,width//2]
 
-    # spawn_points = world.get_map().get_spawn_points()
-    # waypoint01 = map.get_waypoint(carla.Location(x=0,y=0,z=0),project_to_road=True, lane_type=(carla.LaneType.Driving | carla.LaneType.Sidewalk))
-
     pygame_image = pygame.surfarray.make_surface(image_array)
+
+    data_to_write = {"ego":None,"npc":[],"waypoints":[]}
+
+    actor_ids = {"npc":0,"waypoints":0}
+
+    mode = "None"
 
     running = True
     while running:
@@ -148,10 +163,21 @@ def display_interactive_bev(world, image_array, camera):
 
                     waypoint01 = map.get_waypoint(carla.Location(x=world_x,y=world_y,z=0),project_to_road=True, lane_type=(carla.LaneType.Driving | carla.LaneType.Sidewalk))
 
-                    print("#####################")
+                    print("\n#####################")
                     print(f"Clicked pixel corresponds to world point: \n{world_point[1][:2]}")
                     print(f"Closest waypoint for the clicked point: \n{waypoint01.transform.location.x, waypoint01.transform.location.y}")
-                    print("#####################\n\n")
+                    print("#####################\n")
+
+                    waypoint_list = {"id": None, "x": waypoint01.transform.location.x, "y": waypoint01.transform.location.y, "yaw": waypoint01.transform.rotation.yaw}
+
+                    if not mode is "None":
+                        if mode is "ego":
+                            waypoint_list.pop("id")
+                            data_to_write[mode] = waypoint_list
+                        else:
+                            waypoint_list["id"] = actor_ids[mode]
+                            actor_ids[mode] += 1
+                            data_to_write[mode].append(waypoint_list)
 
 
                     world.debug.draw_string(carla.Location(x=world_x,y=world_y), 'o', life_time=10, persistent_lines=False)
@@ -183,11 +209,39 @@ def display_interactive_bev(world, image_array, camera):
                 if event.key == pygame.K_r  :
                     zoom_center = [height//2,width//2]
                     zoom = 1
+                
+                if event.key == pygame.K_e  :
+                    '''
+                    TODO: Need to implement direction choosing 
+                    '''
+                    mode = "ego"
+                    print(f"mode is set to {mode}, press q to quit this mode")
+                
+                if event.key == pygame.K_o  :
+                    '''
+                    TODO: Need to choose speed also
+                    '''
+                    mode = "npc"
+                    print(f"mode is set to {mode}, press q to quit this mode")
+                
+                if event.key == pygame.K_w  :
+                    '''
+                    TODO: Need to generate equally spaced waypoints between the points
+                    '''
+                    mode = "waypoints"
+                    print(f"mode is set to {mode}, press q to quit this mode")
 
-        # Display the image
+                if event.key == pygame.K_q  :
+                    mode = "None"
+                    print(f"mode is set to {mode}")
 
+                if event.key == pygame.K_s  :
+                    print(f"Saved the data at {path_to_json} ")
+                    with open(path_to_json, 'w', encoding='utf-8') as f:
+                        json.dump(data_to_write, f, ensure_ascii=False, indent=4)
+                    
         """
-        Pygame zoom
+        Display the image & zooming
         """
 
         wnd_w, wnd_h = display.get_size()
@@ -195,9 +249,6 @@ def display_interactive_bev(world, image_array, camera):
 
         zoom_area = pygame.Rect(0, 0, *zoom_size)
         zoom_area.center = zoom_center
-        # zoom_area.center = (zoom_center[0], zoom_center[1])
-        # zoom_area.center = (pos_x, pos_y)
-
 
         zoom_surf = pygame.Surface(zoom_area.size)
         zoom_surf.blit(pygame_image, (0, 0), zoom_area)
@@ -206,30 +257,47 @@ def display_interactive_bev(world, image_array, camera):
 
         display.blit(zoom_surf, (0, 0))
 
-
         pygame_image = pygame.surfarray.make_surface(image_array)
-        # display.blit(pygame_image, (0, 0))
         pygame.display.flip()
 
     pygame.quit()
 
 def bev_callback(image, image_array):
+    '''
+    Converts the image into a easily processable format
+    '''
     array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
     array = np.reshape(array, (image.height, image.width, 4))
     array = array[:, :, :3]  # Keep only RGB channels
     array = array[:, :, ::-1]  # Convert BGR to RGB
     image_array[:] = array
 
-
 def capture_image(camera, height=1000, width=1000):
+    '''
+    Gets the camera image
+    '''
     image_array = np.zeros((height, width, 3), dtype=np.uint8)
     camera.listen(lambda image: bev_callback(image, image_array))
     camera.get_world().tick()
     camera.get_world().wait_for_tick()
     return image_array
 
-
 def main():
+
+    folder_to_json = "."
+
+    file_prefix = "scene_"
+    file_suffix = ".json"
+
+    max_scene_num = 0
+    for file in os.listdir(folder_to_json):
+        if file.endswith(file_suffix) and file.startswith(file_prefix):
+            curr_scene_num = int(file[len(file_prefix):len(file)-len(file_suffix)])
+            max_scene_num = max(max_scene_num, curr_scene_num)
+    
+    path_to_json = os.path.join(folder_to_json, file_prefix+str(max_scene_num+1)+file_suffix)
+    print(path_to_json)
+
     client = carla.Client('localhost', 2000)
     client.set_timeout(2.0)
     # world = client.load_world('Town06')
@@ -238,7 +306,7 @@ def main():
     try:
         camera = setup_camera(world)
         image_array = capture_image(camera)
-        display_interactive_bev(world, image_array, camera)
+        display_interactive_bev(world, image_array, camera, path_to_json)
     finally:
         if 'camera' in locals():
             camera.destroy()
