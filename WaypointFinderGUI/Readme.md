@@ -9,6 +9,9 @@
             To specify the waypoint to spawn the ego vehicle at
     o -> select "npc" (obstacle vehicles) mode
             Adds the waypoints clicked for npc spawning
+            Spawns an npc at the waypoint
+    d -> select "del" mode.
+            Deletes the selected npc vehicle
     w -> select "waypoints" mode
             Adds the waypoints clicked for waypoint following for ego vehicle
     q -> comes back to default mode. Points clicked will not be saved

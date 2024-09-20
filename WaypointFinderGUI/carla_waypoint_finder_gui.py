@@ -7,7 +7,9 @@ import json
 import os
 
 
-def setup_camera(world, height=1000, width=1000, camera_height=300):
+image_size = 2000
+
+def setup_camera(world, height=image_size, width=image_size, camera_height=300):
     '''
     Used to initialize the camera actor in Carla
 
@@ -100,6 +102,17 @@ def get_camera_intrinsic(image_w: int, image_h: int, fov: int):
     K[1, 2] = image_h / 2.0
     return K
 
+def distance_func(x, waypoint):
+    '''
+    Computes the distance between the waypoint and the vehicle
+
+    :param x: Tuple of the vehicle id and the vehicle object
+    :param waypoint: Waypoint object
+
+    :return: Distance between the waypoint and the vehicle
+    '''
+    return math.sqrt((x[1].get_location().x - waypoint.transform.location.x)**2 + (x[1].get_location().y - waypoint.transform.location.y)**2)
+
 def display_interactive_bev(world, image_array, camera, path_to_json):
     '''
     Displays the BEV and performs actions based on used inputs (mouse and keyboard).
@@ -129,6 +142,10 @@ def display_interactive_bev(world, image_array, camera, path_to_json):
     actor_ids = {"npc":0,"waypoints":0}
 
     mode = "None"
+
+    bplib = world.get_blueprint_library()
+    vehicle_bp = bplib.filter('vehicle.bmw.*')[0]
+    npc_vehicles = {} 
 
     running = True
     while running:
@@ -174,11 +191,26 @@ def display_interactive_bev(world, image_array, camera, path_to_json):
                         if mode is "ego":
                             waypoint_list.pop("id")
                             data_to_write[mode] = waypoint_list
-                        else:
+                        
+                        if mode is "npc" or mode is "waypoints":
                             waypoint_list["id"] = actor_ids[mode]
                             actor_ids[mode] += 1
                             data_to_write[mode].append(waypoint_list)
 
+                            if mode is "npc":
+                                npc_vehicles[waypoint_list["id"]] = world.spawn_actor(vehicle_bp,carla.Transform(carla.Location(x=waypoint01.transform.location.x,y=waypoint01.transform.location.y,z=waypoint01.transform.location.z+2),waypoint01.transform.rotation))
+
+                        if mode is "del":
+                            # sorted_npcs = sorted(npc_vehicles.items(), key=cmp_to_key(compare))
+                            sorted_npcs = sorted(npc_vehicles.items(), key=lambda x: distance_func(x, waypoint01))
+                            # print(sorted_npcs)
+                            if len(sorted_npcs) > 0:
+                                if distance_func(sorted_npcs[0], waypoint01) < 2:
+                                    for npc_d in data_to_write["npc"]:
+                                        if npc_d["id"] == sorted_npcs[0][0]:
+                                            data_to_write["npc"].remove(npc_d)
+                                    npc_vehicles[sorted_npcs[0][0]].destroy()
+                                    npc_vehicles.pop(sorted_npcs[0][0])
 
                     world.debug.draw_string(carla.Location(x=world_x,y=world_y), 'o', life_time=10, persistent_lines=False)
                     
@@ -223,7 +255,14 @@ def display_interactive_bev(world, image_array, camera, path_to_json):
                     '''
                     mode = "npc"
                     print(f"mode is set to {mode}, press q to quit this mode")
-                
+
+                if event.key == pygame.K_d  :
+                    '''
+                    '''
+                    mode = "del"
+                    print(f"mode is set to {mode}, press q to quit this mode")
+
+
                 if event.key == pygame.K_w  :
                     '''
                     TODO: Need to generate equally spaced waypoints between the points
@@ -262,6 +301,9 @@ def display_interactive_bev(world, image_array, camera, path_to_json):
 
     pygame.quit()
 
+    for npc in npc_vehicles.values():
+        npc.destroy()
+
 def bev_callback(image, image_array):
     '''
     Converts the image into a easily processable format
@@ -272,7 +314,7 @@ def bev_callback(image, image_array):
     array = array[:, :, ::-1]  # Convert BGR to RGB
     image_array[:] = array
 
-def capture_image(camera, height=1000, width=1000):
+def capture_image(camera, height=image_size, width=image_size):
     '''
     Gets the camera image
     '''
