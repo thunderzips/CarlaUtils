@@ -7,7 +7,7 @@ import json
 import os
 
 
-def setup_camera(world, height=1000, width=1000, camera_height=200):
+def setup_camera(world, height=1000, width=1000, camera_height=300):
     '''
     Used to initialize the camera actor in Carla
 
@@ -165,7 +165,7 @@ def display_interactive_bev(world, image_array, camera, path_to_json):
 
                     print("\n#####################")
                     print(f"Clicked pixel corresponds to world point: \n{world_point[1][:2]}")
-                    print(f"Closest waypoint for the clicked point: \n{waypoint01.transform.location.x, waypoint01.transform.location.y}")
+                    print(f"Closest waypoint for the clicked point: \n{waypoint01.transform.location.x, waypoint01.transform.location.y, waypoint01.transform.rotation.yaw}")
                     print("#####################\n")
 
                     waypoint_list = {"id": None, "x": waypoint01.transform.location.x, "y": waypoint01.transform.location.y, "yaw": waypoint01.transform.rotation.yaw}
@@ -300,7 +300,7 @@ def main():
 
     client = carla.Client('localhost', 2000)
     client.set_timeout(2.0)
-    # world = client.load_world('Town06')
+    # world = client.load_world('Town02')
     world = client.get_world()
 
     try:
