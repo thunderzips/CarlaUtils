@@ -27,6 +27,9 @@ class controller:
     def perform_vehicle_control(self):
         '''
         This function is used to control the vehicle manually using either keyboard or joystick.
+
+        :return: bool
+            True if quit, False otherwise
         '''
         
         done = False
