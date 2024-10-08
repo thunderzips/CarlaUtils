@@ -1,0 +1,3 @@
+TOWN : TOWN01
+Ego Vehicle location : Transform(Location(x=173.119980, y=326.970001, z=0.300000), Rotation(pitch=0.000000, yaw=179.999756, roll=0.000000))
+Number of obstacles : 222
